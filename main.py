@@ -185,4 +185,4 @@ class SmartNotesPlusApp(App):
             print(f"Помилка збереження даних: {e}")
 
 if __name__ == '__main__':
-    SmartNotesPlusApp().run()
+    SmartNotesPlusApp().run() #Це ще не кінець, хочу ще багато чого додати
