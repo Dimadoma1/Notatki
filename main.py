@@ -7,6 +7,7 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.checkbox import CheckBox
 from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
+from kivy.uix.popup import Popup
 from kivy.core.window import Window
 from kivy.metrics import dp
 import json
@@ -14,6 +15,40 @@ import os
 from datetime import datetime
 
 Window.size = (500, 700)
+
+class EditPopup(Popup):
+    def __init__(self, item_type, item_id, current_text, callback, **kwargs):
+        super().__init__(**kwargs)
+        self.title = f"Редагувати {item_type}"
+        self.size_hint = (0.8, 0.4)
+        self.item_id = item_id
+        self.callback = callback
+        
+        layout = BoxLayout(orientation='vertical', spacing=dp(10), padding=dp(10))
+        
+        self.edit_input = TextInput(
+            text=current_text,
+            size_hint_y=None,
+            height=dp(100),
+            multiline=True
+        )
+        layout.add_widget(self.edit_input)
+        
+        btn_layout = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(5))
+        save_btn = Button(text='Зберегти')
+        save_btn.bind(on_press=self.save_edits)
+        btn_layout.add_widget(save_btn)
+        
+        cancel_btn = Button(text='Скасувати')
+        cancel_btn.bind(on_press=self.dismiss)
+        btn_layout.add_widget(cancel_btn)
+        
+        layout.add_widget(btn_layout)
+        self.add_widget(layout)
+    
+    def save_edits(self, instance):
+        self.callback(self.item_id, self.edit_input.text)
+        self.dismiss()
 
 class BaseItem(BoxLayout):
     def __init__(self, item_type='note', text='', completed=False, item_id=0, **kwargs):
@@ -32,13 +67,21 @@ class BaseItem(BoxLayout):
             self.checkbox.bind(active=self.on_checkbox_active)
             self.add_widget(self.checkbox)
         
-        self.label = Label(text=text, size_hint_x=0.7, halign='left', valign='middle')
+        self.label = Label(text=text, size_hint_x=0.6, halign='left', valign='middle')
         self.label.text_size = (self.label.width, None)
         self.add_widget(self.label)
         
-        delete_btn = Button(text='X', size_hint_x=0.1, background_color=(1, 0, 0, 1))
+        btn_layout = BoxLayout(size_hint_x=0.3, spacing=dp(5))
+        
+        edit_btn = Button(text='РЕДАГУВАТИ', size_hint_x=None, width=dp(40))
+        edit_btn.bind(on_press=self.edit_item)
+        btn_layout.add_widget(edit_btn)
+        
+        delete_btn = Button(text='ВИДАЛИТИ', size_hint_x=None, width=dp(40))
         delete_btn.bind(on_press=self.delete_item)
-        self.add_widget(delete_btn)
+        btn_layout.add_widget(delete_btn)
+        
+        self.add_widget(btn_layout)
     
     def on_checkbox_active(self, instance, value):
         app = App.get_running_app()
@@ -47,6 +90,10 @@ class BaseItem(BoxLayout):
     def delete_item(self, instance):
         app = App.get_running_app()
         app.delete_item(self.item_type, self.item_id)
+    
+    def edit_item(self, instance):
+        app = App.get_running_app()
+        app.show_edit_popup(self.item_type, self.item_id, self.label.text)
 
 class SmartNotesPlusApp(App):
     def build(self):
@@ -70,6 +117,23 @@ class SmartNotesPlusApp(App):
         self.add_tab('Цитати', 'quote')
         
         return self.tab_panel
+    
+    def show_edit_popup(self, item_type, item_id, current_text):
+        popup = EditPopup(
+            item_type,
+            item_id,
+            current_text,
+            lambda id, text: self.update_item_text(item_type, id, text))
+        popup.open()
+    
+    def update_item_text(self, item_type, item_id, new_text):
+        for item in self.data[f'{item_type}s']:
+            if item['id'] == item_id:
+                item['text'] = new_text.strip()
+                item['updated_at'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                break
+        self.save_data()
+        self.update_items_display(item_type)
     
     def add_tab(self, tab_name, item_type):
         tab = TabbedPanelItem(text=tab_name)
@@ -185,4 +249,4 @@ class SmartNotesPlusApp(App):
             print(f"Помилка збереження даних: {e}")
 
 if __name__ == '__main__':
-    SmartNotesPlusApp().run() #Це ще не кінець, хочу ще багато чого додати
+    SmartNotesPlusApp().run()
